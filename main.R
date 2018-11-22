@@ -1,12 +1,15 @@
 require(mxnet)
-setwd("I:/Desktop/R/SAGE-GRAPH-R")
-source("I:/Desktop/R/SAGE-GRAPH-R/model.R")
-source("I:/Desktop/R/SAGE-GRAPH-R/utils.R")
-source("I:/Desktop/R/SAGE-GRAPH-R/train.R")
+#windows
+#setwd("I:/Desktop/R/SAGE-GRAPH-R")
+#source("I:/Desktop/R/SAGE-GRAPH-R/model.R")
+#source("I:/Desktop/R/SAGE-GRAPH-R/utils.R")
+#source("I:/Desktop/R/SAGE-GRAPH-R/train.R")
 
-#source("./model.R")
-#source("./utils.R")
-#source("./train.R")
+#Mac
+setwd("~/Documents/SAGE-GRAPH-R")
+source("./model.R")
+source("./utils.R")
+source("./train.R")
 
 graph.inputs <- loaddata.cora()
 

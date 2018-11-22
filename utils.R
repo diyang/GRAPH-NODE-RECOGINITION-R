@@ -68,17 +68,20 @@ Graph.receptive.fields.computation <- function(batch.begin,
       neighbor.diff.number <- length(neighbor.index.diff)
       
       #neighbor.index  <- setdiff(neighbor.index, c(node))
-      if(neighbor.diff.number <= (random.neighbor[ly])){
-        neighbor.vec <- neighbor.index.diff
+      if(neighbor.diff.number == 0){
+          neighbor.vec <- NULL
       }else{
-        sample.neighbor.index <- sample(neighbor.diff.number, (random.neighbor[ly]))
-        neighbor.vec <- neighbor.index.diff[sample.neighbor.index]
+        if(neighbor.diff.number <= (random.neighbor[ly])){
+          neighbor.vec <- neighbor.index.diff
+        }else{
+          sample.neighbor.index <- sample(neighbor.diff.number, (random.neighbor[ly]))
+          neighbor.vec <- neighbor.index.diff[sample.neighbor.index]
+        }
+        all.vectices <- c(all.vectices, neighbor.vec)
       }
-      #neighbor.vec <- c(neighbor.vec, node)
       node.stats <- list(node_index = node, neighbor_num = neighbor.number, neighbor_vec = neighbor.vec)
       P.neighbor[[count]] <- node.stats
       count <- count + 1
-      all.vectices <- c(all.vectices, neighbor.vec)
     }  
     sort.unique.vectices <- sort(unique(all.vectices))
     included.node <- c(included.node, sort.unique.vectices)
@@ -86,17 +89,19 @@ Graph.receptive.fields.computation <- function(batch.begin,
     # determine P matrix
     for(ti in 1:length(P.neighbor)){
       node.info <- P.neighbor[[ti]]
-      node.neighbor.indcies <- match(node.info$neighbor_vec, sort.unique.vectices)
-      for(j in 1:length(node.info$neighbor_vec)){
-        vi <- node.info$node_index
-        vj <- node.info$neighbor_vec[j]
-        tj <- node.neighbor.indcies[j]
-        if(length(node.info$neighbor_vec) <= (random.neighbor[ly])){
-          d <- length(node.info$neighbor_vec)
-        }else{
-          d <- (random.neighbor[ly])
+      if(!is.null(node.info$neighbor_vec)){
+        node.neighbor.indcies <- match(node.info$neighbor_vec, sort.unique.vectices)
+        for(j in 1:length(node.info$neighbor_vec)){
+          vi <- node.info$node_index
+          vj <- node.info$neighbor_vec[j]
+          tj <- node.neighbor.indcies[j]
+          if(length(node.info$neighbor_vec) <= (random.neighbor[ly])){
+            d <- length(node.info$neighbor_vec)
+          }else{
+            d <- (random.neighbor[ly])
+          }
+          P.tilde[ti,tj] <- P[vi,vj]*(node.info$neighbor_num/d)
         }
-        P.tilde[ti,tj] <- P[vi,vj]*(node.info$neighbor_num/d)
       }
     }
     layer.tP[[ly]] <-P.tilde
@@ -138,15 +143,25 @@ loaddata.ppi <- function(){
 }
 
 loaddata.cora <- function(){
-  csv_cites <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
-  #csv_cites <- "./example_data/CORA/cites.csv"
+  #csv_cites <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
+  csv_cites <- "./example_data/CORA/cites.csv"
   edges.cites <- read.csv(csv_cites, header = FALSE)
   edges.cites <- as.matrix(edges.cites[2:dim(edges.cites)[1],])
   
-  csv_paper <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
-  #csv_paper <- "./example_data/CORA/paper.csv"
+  #csv_paper <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
+  csv_paper <- "./example_data/CORA/paper.csv"
   paper.class <- read.csv(csv_paper, header = FALSE)
   paper.class <- as.matrix(paper.class[2:dim(paper.class)[1],])
+  
+  csv_content <- "./example_data/CORA/content.csv"
+  content.class <- read.csv(csv_content, header = FALSE)
+  content.class <- content.class[2:dim(content.class)[1],]
+  column.names <-  c("paper_id",as.character(unique(content.class$V2)),"class")
+  num.cols <- length(column.names)
+  num.paper <- dim(paper.class)[1]
+  
+  content.df <- data.frame(matrix(0, ncol = num.cols, nrow = num.paper))
+  colnames(content.df) <- column.names
   
   for(i in 1:dim(paper.class)[1]){
     inds.v1 <- which(edges.cites[,1] == paper.class[i,1])
@@ -154,6 +169,15 @@ loaddata.cora <- function(){
     
     edges.cites[inds.v1,1] <- i
     edges.cites[inds.v2,2] <- i
+    
+    inds.paper_id <-which(content.class[,1] == paper.class[i,1])
+    cite.ids <- content.class[inds.paper_id,2]
+    content.df[i,1] <- paper.class[i,1]
+    content.df[i,num.cols] <- paper.class[i,2]
+    for(j in 1:length(cite.ids)){
+      ind.class <- which(column.names == cite.ids[j])
+      content.df[i,ind.class] <- 1 
+    }
   }
   edges.cites<-apply(edges.cites, 2, as.numeric)
   class(edges.cites) <- "numeric"
@@ -168,6 +192,6 @@ loaddata.cora <- function(){
   
   P <- diag(D.sqrt)%*%A.tilde%*%diag(D.sqrt)
   
-  outputs <- list(adjmatrix = adjmatrix, P = P, Atilde = A.tilde, Dsqrt = D.sqrt, graph = graph, class = paper.class)
+  outputs <- list(adjmatrix = adjmatrix, P = P, Atilde = A.tilde, Dsqrt = D.sqrt, graph = graph, feature = content.df)
   return(outputs)
 }

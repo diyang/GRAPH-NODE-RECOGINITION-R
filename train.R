@@ -122,9 +122,7 @@ GCN.trian.model <- function(model,
                             num.epoch,
                             learning.rate,
                             P,
-                            support,
                             adj,
-                            random.neighbor,
                             wd,
                             clip_gradient = NULL,
                             optimizer = 'sgd',
@@ -133,7 +131,8 @@ GCN.trian.model <- function(model,
   m <- model
   batch.size <- m$batch.size
   input.size <- m$input.size
-  num.layers <- m$num.layers
+  random.neighbor <- m$random.neighbor
+  K <- m$K
   
   opt <- mx.opt.create(optimizer, learning.rate = learning.rate,
                        wd = wd,
@@ -151,9 +150,8 @@ GCN.trian.model <- function(model,
       gcn.inputs <- Graph.receptive.fields.computation(batch.begin,
                                                        batch.size,
                                                        P,
-                                                       support,
                                                        adj,
-                                                       num.layers,
+                                                       K,
                                                        random.neighbor)
       
       
@@ -177,7 +175,7 @@ GCN.trian.model <- function(model,
 GCN.setup.model <- function(gcn.sym,
                             ctx = mx.ctx.default(),
                             K,
-                            layer.vecs,
+                            random.neighbor,
                             hidden.num,
                             input.size,
                             batch.size,
@@ -186,6 +184,11 @@ GCN.setup.model <- function(gcn.sym,
   arg.names <- gcn.sym$arguments
   input.shape <- list()
   support.shape1 <- 1
+  
+  layer.vecs <- c(batch.size)
+  for(i in 1:K){
+    layer.vecs[i+1] <- layer.vecs[i]*random.neighbor[i]
+  }
   
   for(name in arg.names){
     if(grepl('data$', name)){
@@ -197,22 +200,18 @@ GCN.setup.model <- function(gcn.sym,
     }else{
       support.shape2 <- 1
       for(i in 1:K){
-        variable1 <- paste0("support.",i,".gcn$")
-        variable2 <- paste0("support.tilde.",i,".gcn")
-        variable3 <- paste0("H.",i,"tilde")
+        variable1 <- paste0("support.tilde.",i,".gcn")
+        variable2 <- paste0("H.",i,"tilde")
         if(grepl(variable1, name)){
           input.shape[[name]] <- c(layer.vecs[i+1], layer.vecs[i])
         }
         if(grepl(variable2, name)){
-          input.shape[[name]] <- c(layer.vecs[i+1], layer.vecs[i])
-        }
-        if(grepl(variable3, name)){
           input.shape[[name]] <- c(hidden.num[i],layer.vecs[i+1])
         }
       }
     }
   }
-  
+
   params <- mx.model.init.params(symbol = gcn.sym, input.shape = input.shape, initializer = initializer, ctx = ctx)
   
   args <- input.shape
@@ -233,7 +232,8 @@ GCN.setup.model <- function(gcn.sym,
   
   return (list(gcn.exec = gcn.exec, 
                symbol = gcn.sym,
-               num.layers = K,
+               K = K,
+               random.neighbor = random.neighbor,
                layer.vecs = layer.vecs,
                batch.size = batch.size,
                input.size = input.size,
