@@ -37,15 +37,13 @@ chebyshev.polynomials <- function(adj, k){
 Graph.receptive.fields.computation <- function(batch.begin,
                                                batch.size,
                                                P, 
-                                               support, 
                                                adj,
                                                K,
-                                               random.neighbor,
-                                               layer.P = NULL,
-                                               layer.tP = NULL)
+                                               random.neighbor)
 {
   layer.tP <- list()
   layer.H <- list(c(batch.begin:(batch.begin+batch.size-1)))
+  included.node <- layer.H[[1]]
   dim2 <- 0
   for(ly in 1:K){
     # determin the dimensions of P matrix
@@ -65,21 +63,25 @@ Graph.receptive.fields.computation <- function(batch.begin,
     count <- 1
     for(node in layer.H[[ly]]){
       neighbor.index  <- which(adj[node,] > 0)
-      neighbor.index  <- setdiff(neighbor.index, c(node))
       neighbor.number <- length(neighbor.index)
-      if(neighbor.number <= (random.neighbor[ly]-1)){
-        neighbor.vec <- neighbor.index
+      neighbor.index.diff  <- setdiff(neighbor.index, included.node)
+      neighbor.diff.number <- length(neighbor.index.diff)
+      
+      #neighbor.index  <- setdiff(neighbor.index, c(node))
+      if(neighbor.diff.number <= (random.neighbor[ly])){
+        neighbor.vec <- neighbor.index.diff
       }else{
-        sample.neighbor.index <- sample(neighbor.number, (random.neighbor[ly]-1))
-        neighbor.vec <- neighbor.index[sample.neighbor.index]
+        sample.neighbor.index <- sample(neighbor.diff.number, (random.neighbor[ly]))
+        neighbor.vec <- neighbor.index.diff[sample.neighbor.index]
       }
-      neighbor.vec <- c(neighbor.vec, node)
+      #neighbor.vec <- c(neighbor.vec, node)
       node.stats <- list(node_index = node, neighbor_num = neighbor.number, neighbor_vec = neighbor.vec)
       P.neighbor[[count]] <- node.stats
       count <- count + 1
       all.vectices <- c(all.vectices, neighbor.vec)
     }  
     sort.unique.vectices <- sort(unique(all.vectices))
+    included.node <- c(included.node, sort.unique.vectices)
     
     # determine P matrix
     for(ti in 1:length(P.neighbor)){
@@ -89,12 +91,12 @@ Graph.receptive.fields.computation <- function(batch.begin,
         vi <- node.info$node_index
         vj <- node.info$neighbor_vec[j]
         tj <- node.neighbor.indcies[j]
-        if(node.info$neighbor_num <= (random.neighbor[ly]-1)){
-          d <- node.info$neighbor_num
+        if(length(node.info$neighbor_vec) <= (random.neighbor[ly])){
+          d <- length(node.info$neighbor_vec)
         }else{
-          d <- (random.neighbor[ly]-1)
+          d <- (random.neighbor[ly])
         }
-        P.tilde[ti,tj] <- support[vi,vj]*(node.info$neighbor_num/d)
+        P.tilde[ti,tj] <- P[vi,vj]*(node.info$neighbor_num/d)
       }
     }
     layer.tP[[ly]] <-P.tilde
@@ -105,38 +107,44 @@ Graph.receptive.fields.computation <- function(batch.begin,
 }
 
 loaddata.ppi <- function(){
-  json_graph <- "./example_data/PPI/toy-ppi-G.json"
+  json_graph <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/toy-ppi-G.json"
+  #json_graph <- "./example_data/PPI/toy-ppi-G.json"
   G_data  <- fromJSON(paste(readLines(json_graph), collapse=""))
   edges <- matrix(unlist(G_data$links), ncol = 4, byrow = TRUE)[,3:4]+1
   graph <- graph_from_edgelist(edges, directed = FALSE)
   adjmatrix <- as_adj(graph, type = 'both', sparse = igraph_opt("sparsematrices"))
-  graph2 <- graph_from_adjacency_matrix(adjmatrix, mode='undirected', diag=FALSE)
+  #graph2 <- graph_from_adjacency_matrix(adjmatrix, mode='undirected', diag=FALSE)
   
-  json_class <- "./example_data/PPI/toy-ppi-class_map.json"
+  json_class <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/toy-ppi-class_map.json"
+  #json_class <- "./example_data/PPI/toy-ppi-class_map.json"
   G_class  <- fromJSON(paste(readLines(json_class), collapse=""))
   
-  json_idmap <- "./example_data/PPI/toy-ppi-id_map.json"
+  json_idmap <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/toy-ppi-id_map.json"
+  #json_idmap <- "./example_data/PPI/toy-ppi-id_map.json"
   G_idmap  <- fromJSON(paste(readLines(json_idmap), collapse=""))
   
-  csv_feats <- "./example_data/PPI/toy-ppi-feats.csv"
+  csv_feats <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/toy-ppi-feats.csv"
+  #csv_feats <- "./example_data/PPI/toy-ppi-feats.csv"
   feats <- read.csv(csv_feats, header = FALSE)
   
   D.sqrt <- sqrt(colSums(adjmatrix))
   
   A.tilde <- adjmatrix + Diagonal(dim(adjmatrix)[1])
   
-  P <- D.sqrt%*%A.tilde%*%D.sqrt
+  P <- diag(D.sqrt)%*%A.tilde%*%diag(D.sqrt)
   
   outputs <- list(adjmatrix = adjmatrix, P = P, Atilde = A.tilde, Dsqrt = D.sqrt, features = feats, graph = graph, class = G_class)
   return(outputs)
 }
 
 loaddata.cora <- function(){
-  csv_cites <- "./example_data/CORA/cites.csv"
+  csv_cites <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
+  #csv_cites <- "./example_data/CORA/cites.csv"
   edges.cites <- read.csv(csv_cites, header = FALSE)
   edges.cites <- as.matrix(edges.cites[2:dim(edges.cites)[1],])
   
-  csv_paper <- "./example_data/CORA/paper.csv"
+  csv_paper <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
+  #csv_paper <- "./example_data/CORA/paper.csv"
   paper.class <- read.csv(csv_paper, header = FALSE)
   paper.class <- as.matrix(paper.class[2:dim(paper.class)[1],])
   
@@ -158,7 +166,7 @@ loaddata.cora <- function(){
   
   A.tilde <- adjmatrix + Diagonal(dim(adjmatrix)[1])
   
-  P <- D.sqrt%*%A.tilde%*%D.sqrt
+  P <- diag(D.sqrt)%*%A.tilde%*%diag(D.sqrt)
   
   outputs <- list(adjmatrix = adjmatrix, P = P, Atilde = A.tilde, Dsqrt = D.sqrt, graph = graph, class = paper.class)
   return(outputs)
