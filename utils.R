@@ -34,15 +34,15 @@ chebyshev.polynomials <- function(adj, k){
   return(t_k)
 }
 
-Graph.receptive.fields.computation <- function(batch.begin,
-                                               batch.size,
+Graph.receptive.fields.computation <- function(nodes.pool,
                                                P, 
                                                adj,
                                                K,
                                                random.neighbor)
 {
   layer.tP <- list()
-  layer.H <- list(c(batch.begin:(batch.begin+batch.size-1)))
+  nodes.sort <- sort(nodes.pool)
+  layer.H <- list(nodes.sort)
   included.node <- layer.H[[1]]
   dim2 <- 0
   for(ly in 1:K){

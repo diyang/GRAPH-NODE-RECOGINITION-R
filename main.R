@@ -20,7 +20,6 @@ P <- graph.inputs$P
 adj <- graph.inputs$adjmatrix
 layer.tP <- NULL
 random.neighbor <- c(10,5)
-layer.vecs <- c(100, 400, 1600)
 input.size <- dim(graph.inputs$features)[2]
 
 gcn.inputs <- Graph.receptive.fields.computation(batch.begin,
@@ -34,10 +33,23 @@ gcn.sym <- GCN.two.layer.model(num.hidden1 = 25,
                                num.hidden2 = 10)
 
 gcn.model <- GCN.setup.model(gcn.sym,
-                             mx.ctx.default(),
-                             2,
-                             layer.vecs,
-                             c(25,50),
+                             random.neighbor,
+                             hidden.num = c(25,10),
                              input.size,
                              batch.size,
+                             mx.ctx.default(),
                              mx.init.uniform(0.01))
+
+data1 <- mx.symbol.Variable('data1')
+data2 <- mx.symbol.Variable('data2')
+conv.input <- mx.symbol.concat(data = c(data1, data2), num.args = 2, dim = 1)
+
+input.shape <- list()
+input.shape[['data1']] <- c(50,30)
+input.shape[['data2']] <- c(20,30)
+
+ctx <- mx.ctx.default()
+initializer<-mx.init.uniform(0.01)
+params <- mx.model.init.params(symbol = conv.input, input.shape = input.shape, initializer = initializer, ctx = ctx)
+
+

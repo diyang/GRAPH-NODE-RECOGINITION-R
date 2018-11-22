@@ -26,29 +26,36 @@ Graph.Convolution <- function(data,
                               dropout = 0)
 {
   data.aggerator <- mx.symbol.dot(tP, data.neighbor)
-  conv.input <- mx.symbol.Concat(data = c(data, data.aggerator), num.args = 2, dim = 2)
+  conv.input <- mx.symbol.concat(data = c(data, data.aggerator), num.args = 2, dim = 1)
   graph.output <- mx.symbol.FullyConnected(data=conv.input, num_hidden = num.hidden)
   output <- mx.symbol.Activation(data=graph.output, act.type='relu')
   return(output)
 }
 
-GCN.two.layer.model <- function(num.hidden1, num.hidden2){
+GCN.two.layer.model <- function(num.hidden){
   data  <- mx.symbol.Variable('data')
   label <- mx.symbol.Variable('label')
   layer.tP <- list()
   layer.H  <- list()
-  for(i in 1:2){
+  K <- length(num.hidden)
+  for(i in 1:K){
     layer.tP[[i]] <- mx.symbol.Variable(paste0("support.tilde.",i,".gcn"))
     layer.H[[i]]  <- mx.symbol.Variable(paste0("H.",i,"tilde"))
   }
-  layer1.out <- Graph.Convolution(data=data,
-                                  data.bar = layer.H[[2]],
-                                  tP=layer.tP[[2]], 
-                                  num.hidden = num.hidden1)
-  layer2.out <- Graph.Convolution(data=layer1.out,
-                                  data.bar = layer.H[[1]],
-                                  tP=layer.tP[[1]], 
-                                  num.hidden = num.hidden2)
-  GCN.model <- mx.symbol.SoftmaxOutput(data=layer2.out, label=label)
+  
+  layer.outputs <- list()
+  for(i in 1:K){
+    idx <- K-i+1
+    if(i == 1){
+      gcn.input <- data
+    }else{
+      gcn.input <- layer.outputs[[i-1]]
+    }
+    layer.outputs[[i]] <- Graph.Convolution(data=gcn.input,
+                                            data.bar = layer.H[[idx]],
+                                            tP=layer.tP[[idx]], 
+                                            num.hidden = num.hidden[idx])
+  }
+  GCN.model <- mx.symbol.SoftmaxOutput(data=layer.outputs[[K]], label=label)
   return(GCN.model)
 }
