@@ -1,55 +1,48 @@
 require(mxnet)
 #windows
-#setwd("I:/Desktop/R/SAGE-GRAPH-R")
-#source("I:/Desktop/R/SAGE-GRAPH-R/model.R")
-#source("I:/Desktop/R/SAGE-GRAPH-R/utils.R")
-#source("I:/Desktop/R/SAGE-GRAPH-R/train.R")
+setwd("I:/Desktop/R/SAGE-GRAPH-R")
+source("I:/Desktop/R/SAGE-GRAPH-R/model.R")
+source("I:/Desktop/R/SAGE-GRAPH-R/utils.R")
+source("I:/Desktop/R/SAGE-GRAPH-R/train.R")
 
 #Mac
-setwd("~/Documents/SAGE-GRAPH-R")
-source("./model.R")
-source("./utils.R")
-source("./train.R")
+#setwd("~/Documents/SAGE-GRAPH-R")
+#source("./model.R")
+#source("./utils.R")
+#source("./train.R")
 
-graph.inputs <- loaddata.cora()
+graph.input <- loaddata.cora()
+level.label <- unique(graph.input$content$class)
+num.label <- length(unique(level.label))
+label.text <-graph.input$content$class 
+label <- rep(0, length(label.text))
+for(i in 1:num.label){
+  class.ind <- which(label.text == level.label[i])
+  label[class.ind] <- i
+}
+data <-as.matrix(graph.input$content[, -which(names(graph.input$content) %in% c("paper_id", "class"))])
+graph.input[["features"]] <- list(data=data, label=label) 
 
-K <- 2
-batch.begin <- 1
-batch.size <- 1
-P <- graph.inputs$P
-adj <- graph.inputs$adjmatrix
-layer.tP <- NULL
-random.neighbor <- c(10,5)
-input.size <- dim(graph.inputs$features)[2]
 
-gcn.inputs <- Graph.receptive.fields.computation(batch.begin,
-                                                 batch.size,
-                                                 P,
-                                                 adj,
-                                                 K,
-                                                 random.neighbor)
+# model establish
+batch.size <- 2
+random.neighbor <- c(20)
+num.hidden <- c(20)
+input.size <- dim(data)[2]
 
-gcn.sym <- GCN.two.layer.model(num.hidden1 = 25, 
-                               num.hidden2 = 10)
-
+gcn.sym <- GCN.two.layer.model(num.hidden, num.label, dropout = 0.3)
 gcn.model <- GCN.setup.model(gcn.sym,
                              random.neighbor,
-                             hidden.num = c(25,10),
                              input.size,
                              batch.size,
                              mx.ctx.default(),
                              mx.init.uniform(0.01))
 
-data1 <- mx.symbol.Variable('data1')
-data2 <- mx.symbol.Variable('data2')
-conv.input <- mx.symbol.concat(data = c(data1, data2), num.args = 2, dim = 1)
-
-input.shape <- list()
-input.shape[['data1']] <- c(50,30)
-input.shape[['data2']] <- c(20,30)
-
-ctx <- mx.ctx.default()
-initializer<-mx.init.uniform(0.01)
-params <- mx.model.init.params(symbol = conv.input, input.shape = input.shape, initializer = initializer, ctx = ctx)
-
-
+# training process
+model<-gcn.model
+nodes.train.pool <- c(1:length(label))
+learning.rate <- 0.005
+weight.decay <- NULL
+clip.gradient <- NULL
+optimizer <- 'sgd'
+lr.scheduler <- mx.lr_scheduler.FactorScheduler(step = 50, factor=0.5, stop_factor_lr = 0.01)

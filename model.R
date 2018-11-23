@@ -20,42 +20,48 @@
 require('mxnet')
 
 Graph.Convolution <- function(data,
-                              data.neighbor,
+                              neighbors,
                               tP, 
                               num.hidden,
                               dropout = 0)
 {
-  data.aggerator <- mx.symbol.dot(tP, data.neighbor)
-  conv.input <- mx.symbol.concat(data = c(data, data.aggerator), num.args = 2, dim = 1)
+  if(dropout > 0){
+    data <- mx.symbol.Dropout(data=data, p=dropout)
+  }
+  data.aggerator <- mx.symbol.dot(tP, neighbors)
+  conv.input <- mx.symbol.Concat(data = c(data, data.aggerator), num.args = 2, dim = 1)
   graph.output <- mx.symbol.FullyConnected(data=conv.input, num_hidden = num.hidden)
-  output <- mx.symbol.Activation(data=graph.output, act.type='relu')
-  return(output)
+  graph.activation <- mx.symbol.Activation(data=graph.output, act.type='relu')
+  graph.L2norm <- mx.symbol.L2Normalization(graph.activation)
+  return(graph.L2norm)
 }
 
-GCN.two.layer.model <- function(num.hidden){
-  data  <- mx.symbol.Variable('data')
+GCN.two.layer.model <- function(num.hidden, num.label, dropout = 0){
   label <- mx.symbol.Variable('label')
   layer.tP <- list()
   layer.H  <- list()
   K <- length(num.hidden)
   for(i in 1:K){
-    layer.tP[[i]] <- mx.symbol.Variable(paste0("support.tilde.",i,".gcn"))
-    layer.H[[i]]  <- mx.symbol.Variable(paste0("H.",i,"tilde"))
+    layer.tP[[i]] <- mx.symbol.Variable(paste0("P.",i,".tilde"))
+    layer.H[[i]]  <- mx.symbol.Variable(paste0("H.",i,".tilde"))
   }
+  layer.H[[K+1]]  <- mx.symbol.Variable(paste0("H.",(K+1),".tilde"))
   
   layer.outputs <- list()
-  for(i in 1:K){
-    idx <- K-i+1
-    if(i == 1){
-      gcn.input <- data
+  for(i in K:1){
+    gcn.input <- layer.H[[i]]
+    if(i == K){
+      neighbour.input <- layer.H[[i+1]]
     }else{
-      gcn.input <- layer.outputs[[i-1]]
+      neighbour.input <- layer.outputs[[i+1]]
     }
     layer.outputs[[i]] <- Graph.Convolution(data=gcn.input,
-                                            data.bar = layer.H[[idx]],
-                                            tP=layer.tP[[idx]], 
-                                            num.hidden = num.hidden[idx])
+                                            neighbors = neighbour.input,
+                                            tP=layer.tP[[i]], 
+                                            num.hidden = num.hidden[i])
   }
-  GCN.model <- mx.symbol.SoftmaxOutput(data=layer.outputs[[K]], label=label)
-  return(GCN.model)
+  
+  fc <- mx.symbol.FullyConnected(data=layer.outputs[[1]], num.hidden=num.label)
+  loss.all <- mx.symbol.SoftmaxOutput(data=fc, label=label, name="sm")
+  return(loss.all)
 }

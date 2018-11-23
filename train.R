@@ -115,58 +115,145 @@ update.closure <- function(optimizer, weight, grad, state.list)
   return(weight.list)
 }
 
+calc.nll <- function(seq.label.probs, batch.size) {
+  seq.label.probs <- na.omit(seq.label.probs)
+  nll =  sum(seq.label.probs) / batch.size
+  return (nll)
+}
 
 GCN.trian.model <- function(model,
-                            train.data,
-                            valid.data,
+                            graph.input,
+                            nodes.train.pool,
+                            nodes.valid.pool = NULL,
                             num.epoch,
                             learning.rate,
-                            P,
-                            adj,
-                            wd,
-                            clip_gradient = NULL,
+                            weight.decay,
+                            clip.gradient = NULL,
                             optimizer = 'sgd',
-                            lr_scheduler = NULL)
+                            lr.scheduler = NULL)
 {
   m <- model
   batch.size <- m$batch.size
   input.size <- m$input.size
+  layer.vecs <- m$layer.vecs
   random.neighbor <- m$random.neighbor
   K <- m$K
   
   opt <- mx.opt.create(optimizer, learning.rate = learning.rate,
-                       wd = wd,
+                       wd = weight.decay,
                        rescale.grad = (1/batch.size),
-                       clip_gradient=clip_gradient,
-                       lr_scheduler = lr_scheduler)
+                       clip_gradient=clip.gradient,
+                       lr_scheduler = lr.scheduler)
   
+  state.list <- lapply(seq_along(m$gcn.exec$ref.arg.arrays), function(i) {
+    if (is.null(m$gcn.exec$ref.arg.arrays[[i]])) return(NULL)
+    opt$create.state(i, m$gcn.exec$ref.arg.arrays[[i]])
+  })
+
   cat('\014')
   for(epoch in 1:num.epoch){
-    batch.counter <- 1
     cat(paste0('Training Epoch ', epoch, '\n'))
-    
+    train.nll <- 0
+    ##################
+    # batch training #
+    ##################
     for(batch.counter in 1:num.batch){
+      # gcn input data preparation
       batch.begin <- (batch.counter-1)*batch.size+1
-      gcn.inputs <- Graph.receptive.fields.computation(batch.begin,
-                                                       batch.size,
-                                                       P,
-                                                       adj,
-                                                       K,
-                                                       random.neighbor)
+      nodes.train.batch <- nodes.train.pool[batch.begin:(batch.begin+batch.size-1)] 
+      gcn.layer.input <- Graph.receptive.fields.computation(nodes.train.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
+
+      gcn.train.data <- list()
+      for(i in 1:K){
+        variable.P <- paste0("P.",i,".tilde")
+        variable.H <- paste0("H.",i,".tilde")
+        
+        gcn.train.data[[variable.P]] <- mx.nd.array(t(gcn.layer.input$tP[[i]]))
+        
+        if(length(gcn.layer.input$H[[i]]) == layer.vecs[i]){
+          gcn.train.data[[variable.H]] <- mx.nd.array(t(graph.input$features$data[gcn.layer.input$H[[i]],]))
+        }else{
+          #padding layer inputs
+          offset.vecs <- layer.vecs[i] - length(gcn.layer.input$H[[i]])
+          padding <- matrix(0, offset.vecs, input.size)
+          gcn.train.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.layer.input$H[[i]],]),padding)))
+        }
+      }
+      
+      if(length(gcn.layer.input$H[[K+1]]) == layer.vecs[K+1]){
+        gcn.train.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(graph.input$features$data[gcn.layer.input$H[[(K+1)]],]))
+      }else{
+        #padding layer inputs
+        offset.vecs <- layer.vecs[K+1] - length(gcn.layer.input$H[[K+1]])
+        padding <- matrix(0, offset.vecs, input.size)
+        gcn.train.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.layer.input$H[[(K+1)]],]),padding)))
+      }
+      gcn.train.data[["label"]] <- mx.nd.array(graph.input$features$label[gcn.layer.input$H[[1]]])
       
       
+      mx.exec.update.arg.arrays(m$gcn.exec, gcn.train.data, match.name = TRUE)
+      mx.exec.forward(m$gcn.exec, is.train = TRUE)
+      mx.exec.backward(m$gcn.exec)
+      arg.blocks <- update.closure(optimizer = opt, weight = m$gcn.exec$ref.arg.arrays, 
+                                   grad = m$gcn.exec$ref.grad.arrays, state.list = state.list)
+      mx.exec.update.arg.arrays(m$gcn.exec, arg.blocks, skip.null=TRUE)
       
+      label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
+      train.nll <- train.nll + calc.nll(as.array(label.probs), batch.size)
+      cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Trian: NLL=", train.nll / batch.counter,"\n"))
     }
-    
+    ####################
+    # batch validating #
+    ####################
+    if(!is.null(nodes.valid.pool)){
+      cat("\n")
+      cat("Validating \n")
+      for(batch.counter in 1:num.batch.valid){
+        # gcn input data preparation
+        batch.begin <- (batch.counter-1)*batch.size+1
+        nodes.valid.batch <- nodes.valid.pool[batch.begin:(batch.begin+batch.size-1)] 
+        gcn.inputs <- Graph.receptive.fields.computation(nodes.valid.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
+        gcn.valid.data <- list()
+        for(i in 1:K){
+          variable.P <- paste0("P.",i,".tilde")
+          variable.H <- paste0("H.",i,".tilde")
+          
+          gcn.valid.data[[variable.P]] <- mx.nd.array(t(gcn.inputs$tP[[i]]))
+          
+          if(length(gcn.inputs$H[[i]]) == layer.vecs[i]){
+            gcn.valid.data[[variable.H]] <- mx.nd.array(t(train.data[gcn.inputs$H[[i]],]))
+          }else{
+            #padding layer inputs
+            offset.vecs <- layer.vecs[i] - length(gcn.inputs$H[[i]])
+            padding <- matrix(0, offset.vecs, input.size)
+            gcn.valid.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(train.data[gcn.inputs$H[[i]],]),padding)))
+          }
+        }
+        
+        if(length(gcn.inputs$H[[K+1]]) == layer.vecs[K+1]){
+          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(train.data[gcn.inputs$H[[(K+1)]],]))
+        }else{
+          #padding layer inputs
+          offset.vecs <- layer.vecs[K+1] - length(gcn.inputs$H[[K+1]])
+          padding <- matrix(0, offset.vecs, input.size)
+          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(train.data[gcn.inputs$H[[(K+1)]],]),padding)))
+        }
+        
+        mx.exec.update.arg.arrays(m$gcn.exec, gcn.valid.data, match.name = TRUE)
+        mx.exec.forward(m$gcn.exec, is.train = FALSE)
+        
+        label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
+        valid.nll <- valid.nll + calc.nll(as.array(label.probs), batch.size)
+        cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Valid: NLL=", valid.nll / batch.counter,"\n"))
+      }
+    }
+    cat("\n")
   }
-  
-  
-  
+  return(m)
 }
 
 GCN.setup.model <- function(gcn.sym,
                             random.neighbor,
-                            hidden.num,
                             input.size,
                             batch.size,
                             ctx = mx.ctx.default(),
@@ -175,7 +262,7 @@ GCN.setup.model <- function(gcn.sym,
   arg.names <- gcn.sym$arguments
   input.shape <- list()
   support.shape1 <- 1
-  K <- length(hidden.num)
+  K <- length(random.neighbor)
   
   layer.vecs <- c(batch.size)
   for(i in 1:K){
@@ -183,22 +270,23 @@ GCN.setup.model <- function(gcn.sym,
   }
   
   for(name in arg.names){
-    if(grepl('data$', name)){
-      input.shape[[name]] <- c(input.size, layer.vecs[length(layer.vecs)])
-    }
-    else if( grepl('label$', name) )
+    if( grepl('label$', name) )
     {
       input.shape[[name]] <- c(batch.size)
     }else{
-      for(i in 1:K){
-        variable.P <- paste0("support.tilde.",i,".gcn")
-        variable.H <- paste0("H.",i,"tilde")
+      for(i in K:1){
+        variable.P <- paste0("P.",i,".tilde")
+        variable.H <- paste0("H.",(i+1),".tilde")
         if(grepl(variable.P, name)){
           input.shape[[name]] <- c(layer.vecs[i+1], layer.vecs[i])
         }
         if(grepl(variable.H, name)){
-          input.shape[[name]] <- c(hidden.num[i],layer.vecs[i+1])
+          input.shape[[name]] <- c(input.size,layer.vecs[i+1])
         }
+      }
+      variable.H <- paste0("H.",1,".tilde")
+      if(grepl(variable.H, name)){
+        input.shape[[name]] <- c(input.size,layer.vecs[1])
       }
     }
   }
@@ -227,8 +315,7 @@ GCN.setup.model <- function(gcn.sym,
                random.neighbor = random.neighbor,
                layer.vecs = layer.vecs,
                batch.size = batch.size,
-               input.size = input.size,
-               layer.hidden = hidden.num))
+               input.size = input.size))
   
 }
 

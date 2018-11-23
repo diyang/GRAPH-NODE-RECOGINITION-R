@@ -37,18 +37,19 @@ chebyshev.polynomials <- function(adj, k){
 Graph.receptive.fields.computation <- function(nodes.pool,
                                                P, 
                                                adj,
-                                               K,
                                                random.neighbor)
 {
   layer.tP <- list()
   nodes.sort <- sort(nodes.pool)
   layer.H <- list(nodes.sort)
   included.node <- layer.H[[1]]
-  dim2 <- 0
+  K <- length(random.neighbor)
+  node.size <- length(nodes.pool)
+  
   for(ly in 1:K){
     # determin the dimensions of P matrix
     if(ly == 1){
-      dim1 <- batch.size
+      dim1 <- node.size
     }else{
       dim1 <- dim2
     }
@@ -74,7 +75,7 @@ Graph.receptive.fields.computation <- function(nodes.pool,
         if(neighbor.diff.number <= (random.neighbor[ly])){
           neighbor.vec <- neighbor.index.diff
         }else{
-          sample.neighbor.index <- sample(neighbor.diff.number, (random.neighbor[ly]))
+          sample.neighbor.index <- sample(neighbor.diff.number, (random.neighbor[ly]), replace=FALSE)
           neighbor.vec <- neighbor.index.diff[sample.neighbor.index]
         }
         all.vectices <- c(all.vectices, neighbor.vec)
@@ -143,17 +144,18 @@ loaddata.ppi <- function(){
 }
 
 loaddata.cora <- function(){
-  #csv_cites <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
-  csv_cites <- "./example_data/CORA/cites.csv"
+  csv_cites <-   "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
+  #csv_cites <- "./example_data/CORA/cites.csv"
   edges.cites <- read.csv(csv_cites, header = FALSE)
   edges.cites <- as.matrix(edges.cites[2:dim(edges.cites)[1],])
   
-  #csv_paper <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
-  csv_paper <- "./example_data/CORA/paper.csv"
+  csv_paper <-   "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
+  #csv_paper <- "./example_data/CORA/paper.csv"
   paper.class <- read.csv(csv_paper, header = FALSE)
   paper.class <- as.matrix(paper.class[2:dim(paper.class)[1],])
   
-  csv_content <- "./example_data/CORA/content.csv"
+  csv_content <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/content.csv"
+  #csv_content <- "./example_data/CORA/content.csv"
   content.class <- read.csv(csv_content, header = FALSE)
   content.class <- content.class[2:dim(content.class)[1],]
   column.names <-  c("paper_id",as.character(unique(content.class$V2)),"class")
@@ -192,6 +194,6 @@ loaddata.cora <- function(){
   
   P <- diag(D.sqrt)%*%A.tilde%*%diag(D.sqrt)
   
-  outputs <- list(adjmatrix = adjmatrix, P = P, Atilde = A.tilde, Dsqrt = D.sqrt, graph = graph, feature = content.df)
+  outputs <- list(adjmatrix = adjmatrix, P = P, Atilde = A.tilde, Dsqrt = D.sqrt, graph = graph, content = content.df)
   return(outputs)
 }
