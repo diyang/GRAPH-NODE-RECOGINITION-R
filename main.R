@@ -1,15 +1,15 @@
 require(mxnet)
 #windows
-setwd("I:/Desktop/R/SAGE-GRAPH-R")
-source("I:/Desktop/R/SAGE-GRAPH-R/model.R")
-source("I:/Desktop/R/SAGE-GRAPH-R/utils.R")
-source("I:/Desktop/R/SAGE-GRAPH-R/train.R")
+#setwd("I:/Desktop/R/SAGE-GRAPH-R")
+#source("I:/Desktop/R/SAGE-GRAPH-R/model.R")
+#source("I:/Desktop/R/SAGE-GRAPH-R/utils.R")
+#source("I:/Desktop/R/SAGE-GRAPH-R/train.R")
 
 #Mac
-#setwd("~/Documents/SAGE-GRAPH-R")
-#source("./model.R")
-#source("./utils.R")
-#source("./train.R")
+setwd("~/Documents/SAGE-GRAPH-R")
+source("./model.R")
+source("./utils.R")
+source("./train.R")
 
 graph.input <- loaddata.cora()
 level.label <- unique(graph.input$content$class)
@@ -41,8 +41,16 @@ gcn.model <- GCN.setup.model(gcn.sym,
 # training process
 model<-gcn.model
 nodes.train.pool <- c(1:length(label))
-learning.rate <- 0.005
-weight.decay <- NULL
-clip.gradient <- NULL
+learning.rate <- 0.01
+weight.decay <- 0
+clip.gradient <- 1
 optimizer <- 'sgd'
 lr.scheduler <- mx.lr_scheduler.FactorScheduler(step = 50, factor=0.5, stop_factor_lr = 0.01)
+gcn.model.trained <- GCN.trian.model(model = gcn.model,
+                                     nodes.train.pool = c(1:length(label)),
+                                     num.epoch = 100,
+                                     learning.rate = learning.rate,
+                                     weight.decay = weight.decay,
+                                     clip.gradient = clip.gradient,
+                                     optimizer = optimizer,
+                                     lr.scheduler = lr.scheduler)

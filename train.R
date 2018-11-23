@@ -19,14 +19,7 @@
 
 require(mxnet)
 source("model.R")
-
-lstnet.input <- function(data, batch.begin, batch.size)
-{
-  data.batch <- list()
-  data.batch[["data"]] <- mx.nd.array(data$data[,,batch.begin:(batch.begin+batch.size-1)])
-  data.batch[["label"]] <- mx.nd.array(data$label[,batch.begin:(batch.begin+batch.size-1)])
-  return(data.batch)
-}
+#source("Optimizer.R")
 
 is.param.name <- function(name) 
 { 
@@ -48,73 +41,6 @@ mx.model.init.params <- function(symbol, input.shape, initializer, ctx)
   return(list(arg.params=arg.params, aux.params=aux.params)) 
 }
 
-# Initialize the data iter
-mx.model.init.iter.rnn <- function(X, y, batch.size, is.train) 
-{
-  if (is.MXDataIter(X)) return(X)
-  shape <- dim(data)
-  if (is.null(shape)) {
-    num.data <- length(X)
-  } else {
-    ndim <- length(shape)
-    num.data <- shape[[ndim]]
-  }
-  if (is.null(y)) {
-    if (is.train) stop("Need to provide parameter y for training with R arrays.")
-    y <- c(1:num.data) * 0
-  }
-  
-  batch.size <- min(num.data, batch.size)
-  
-  return(mx.io.arrayiter(X, y, batch.size=batch.size, shuffle=is.train))
-}
-
-is.MXDataIter <- function(x) 
-{
-  inherits(x, "Rcpp_MXNativeDataIter") ||
-    inherits(x, "Rcpp_MXArrayDataIter")
-}
-
-# check data and translate data into iterator if data is array/matrix
-check.data <- function(data, batch.size, is.train) 
-{
-  if (!is.null(data) && !is.list(data) && !is.mx.dataiter(data)) 
-  {
-    stop("The dataset should be either a mx.io.DataIter or a R list")
-  }
-  if (is.list(data)) {
-    if (is.null(data$data) || is.null(data$label)){
-      stop("Please provide dataset as list(data=R.array, label=R.array)")
-    }
-    data <- mx.model.init.iter.rnn(data$data, data$label, batch.size=batch.size, is.train = is.train)
-  }
-  if (!is.null(data) && !data$iter.next()) {
-    data$reset()
-    if (!data$iter.next()) stop("Empty input")
-  }
-  return (data)
-}
-
-update.closure <- function(optimizer, weight, grad, state.list) 
-{
-  ulist <- lapply(seq_along(weight), function(i) {
-    if (!is.null(grad[[i]])) {
-      optimizer$update(i, weight[[i]], grad[[i]], state.list[[i]])
-    } else {
-      return(NULL)
-    }
-  })
-  # update state list, use mutate assignment
-  state.list <- lapply(ulist, function(x) {
-    x$state
-  })
-  # return updated weight list
-  weight.list <- lapply(ulist, function(x) {
-    x$weight
-  })
-  return(weight.list)
-}
-
 calc.nll <- function(seq.label.probs, batch.size) {
   seq.label.probs <- na.omit(seq.label.probs)
   nll =  sum(seq.label.probs) / batch.size
@@ -126,9 +52,9 @@ GCN.trian.model <- function(model,
                             nodes.train.pool,
                             nodes.valid.pool = NULL,
                             num.epoch,
-                            learning.rate,
-                            weight.decay,
-                            clip.gradient = NULL,
+                            learning.rate = 0.01,
+                            weight.decay = 0,
+                            clip.gradient = 1,
                             optimizer = 'sgd',
                             lr.scheduler = NULL)
 {
@@ -141,22 +67,20 @@ GCN.trian.model <- function(model,
   
   opt <- mx.opt.create(optimizer, learning.rate = learning.rate,
                        wd = weight.decay,
-                       rescale.grad = (1/batch.size),
+                       rescale.grad = 1, #(1/batch.size),
                        clip_gradient=clip.gradient,
                        lr_scheduler = lr.scheduler)
   
-  state.list <- lapply(seq_along(m$gcn.exec$ref.arg.arrays), function(i) {
-    if (is.null(m$gcn.exec$ref.arg.arrays[[i]])) return(NULL)
-    opt$create.state(i, m$gcn.exec$ref.arg.arrays[[i]])
-  })
+  opt.updater <- mx.opt.get.updater(opt, m$gcn.exec$ref.arg.arrays)
 
   cat('\014')
   for(epoch in 1:num.epoch){
     cat(paste0('Training Epoch ', epoch, '\n'))
-    train.nll <- 0
+    
     ##################
     # batch training #
     ##################
+    train.nll <- 0
     for(batch.counter in 1:num.batch){
       # gcn input data preparation
       batch.begin <- (batch.counter-1)*batch.size+1
@@ -190,14 +114,12 @@ GCN.trian.model <- function(model,
       }
       gcn.train.data[["label"]] <- mx.nd.array(graph.input$features$label[gcn.layer.input$H[[1]]])
       
-      
       mx.exec.update.arg.arrays(m$gcn.exec, gcn.train.data, match.name = TRUE)
       mx.exec.forward(m$gcn.exec, is.train = TRUE)
       mx.exec.backward(m$gcn.exec)
-      arg.blocks <- update.closure(optimizer = opt, weight = m$gcn.exec$ref.arg.arrays, 
-                                   grad = m$gcn.exec$ref.grad.arrays, state.list = state.list)
+      arg.blocks <- opt.updater(weight = m$gcn.exec$ref.arg.arrays, grad = m$gcn.exec$ref.grad.arrays)
       mx.exec.update.arg.arrays(m$gcn.exec, arg.blocks, skip.null=TRUE)
-      
+
       label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
       train.nll <- train.nll + calc.nll(as.array(label.probs), batch.size)
       cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Trian: NLL=", train.nll / batch.counter,"\n"))
@@ -208,6 +130,7 @@ GCN.trian.model <- function(model,
     if(!is.null(nodes.valid.pool)){
       cat("\n")
       cat("Validating \n")
+      valid.nll <- 0
       for(batch.counter in 1:num.batch.valid){
         # gcn input data preparation
         batch.begin <- (batch.counter-1)*batch.size+1

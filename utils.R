@@ -144,18 +144,18 @@ loaddata.ppi <- function(){
 }
 
 loaddata.cora <- function(){
-  csv_cites <-   "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
-  #csv_cites <- "./example_data/CORA/cites.csv"
+  #csv_cites <-   "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/cites.csv"
+  csv_cites <- "./example_data/CORA/cites.csv"
   edges.cites <- read.csv(csv_cites, header = FALSE)
   edges.cites <- as.matrix(edges.cites[2:dim(edges.cites)[1],])
   
-  csv_paper <-   "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
-  #csv_paper <- "./example_data/CORA/paper.csv"
+  #csv_paper <-   "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/paper.csv"
+  csv_paper <- "./example_data/CORA/paper.csv"
   paper.class <- read.csv(csv_paper, header = FALSE)
   paper.class <- as.matrix(paper.class[2:dim(paper.class)[1],])
   
-  csv_content <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/content.csv"
-  #csv_content <- "./example_data/CORA/content.csv"
+  #csv_content <- "I:/Desktop/R/SAGE-GRAPH-R/example_data/CORA/content.csv"
+  csv_content <- "./example_data/CORA/content.csv"
   content.class <- read.csv(csv_content, header = FALSE)
   content.class <- content.class[2:dim(content.class)[1],]
   column.names <-  c("paper_id",as.character(unique(content.class$V2)),"class")
