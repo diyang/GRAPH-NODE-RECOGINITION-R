@@ -81,38 +81,39 @@ GCN.trian.model <- function(model,
     # batch training #
     ##################
     train.nll <- 0
-    for(batch.counter in 1:num.batch){
+    num.batch.train <- floor(length(nodes.train.pool)/batch.size)
+    for(batch.counter in 1:num.batch.train){
       # gcn input data preparation
       batch.begin <- (batch.counter-1)*batch.size+1
       nodes.train.batch <- nodes.train.pool[batch.begin:(batch.begin+batch.size-1)] 
-      gcn.layer.input <- Graph.receptive.fields.computation(nodes.train.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
+      gcn.train.input <- Graph.receptive.fields.computation(nodes.train.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
 
       gcn.train.data <- list()
       for(i in 1:K){
         variable.P <- paste0("P.",i,".tilde")
         variable.H <- paste0("H.",i,".tilde")
         
-        gcn.train.data[[variable.P]] <- mx.nd.array(t(gcn.layer.input$tP[[i]]))
+        gcn.train.data[[variable.P]] <- mx.nd.array(t(gcn.train.input$tP[[i]]))
         
-        if(length(gcn.layer.input$H[[i]]) == layer.vecs[i]){
-          gcn.train.data[[variable.H]] <- mx.nd.array(t(graph.input$features$data[gcn.layer.input$H[[i]],]))
+        if(length(gcn.train.input$H[[i]]) == layer.vecs[i]){
+          gcn.train.data[[variable.H]] <- mx.nd.array(t(graph.input$features$data[gcn.train.input$H[[i]],]))
         }else{
           #padding layer inputs
-          offset.vecs <- layer.vecs[i] - length(gcn.layer.input$H[[i]])
+          offset.vecs <- layer.vecs[i] - length(gcn.train.input$H[[i]])
           padding <- matrix(0, offset.vecs, input.size)
-          gcn.train.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.layer.input$H[[i]],]),padding)))
+          gcn.train.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.train.input$H[[i]],]),padding)))
         }
       }
       
-      if(length(gcn.layer.input$H[[K+1]]) == layer.vecs[K+1]){
-        gcn.train.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(graph.input$features$data[gcn.layer.input$H[[(K+1)]],]))
+      if(length(gcn.train.input$H[[K+1]]) == layer.vecs[K+1]){
+        gcn.train.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(graph.input$features$data[gcn.train.input$H[[(K+1)]],]))
       }else{
         #padding layer inputs
-        offset.vecs <- layer.vecs[K+1] - length(gcn.layer.input$H[[K+1]])
+        offset.vecs <- layer.vecs[K+1] - length(gcn.train.input$H[[K+1]])
         padding <- matrix(0, offset.vecs, input.size)
-        gcn.train.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.layer.input$H[[(K+1)]],]),padding)))
+        gcn.train.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.train.input$H[[(K+1)]],]),padding)))
       }
-      gcn.train.data[["label"]] <- mx.nd.array(graph.input$features$label[gcn.layer.input$H[[1]]])
+      gcn.train.data[["label"]] <- mx.nd.array(graph.input$features$label[gcn.train.input$H[[1]]])
       
       mx.exec.update.arg.arrays(m$gcn.exec, gcn.train.data, match.name = TRUE)
       mx.exec.forward(m$gcn.exec, is.train = TRUE)
@@ -131,37 +132,39 @@ GCN.trian.model <- function(model,
       cat("\n")
       cat("Validating \n")
       valid.nll <- 0
+      num.batch.valid <- floor(length(nodes.valid.pool)/batch.size)
       for(batch.counter in 1:num.batch.valid){
         # gcn input data preparation
         batch.begin <- (batch.counter-1)*batch.size+1
         nodes.valid.batch <- nodes.valid.pool[batch.begin:(batch.begin+batch.size-1)] 
-        gcn.inputs <- Graph.receptive.fields.computation(nodes.valid.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
+        gcn.valid.inputs <- Graph.receptive.fields.computation(nodes.valid.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
+        
         gcn.valid.data <- list()
         for(i in 1:K){
           variable.P <- paste0("P.",i,".tilde")
           variable.H <- paste0("H.",i,".tilde")
           
-          gcn.valid.data[[variable.P]] <- mx.nd.array(t(gcn.inputs$tP[[i]]))
+          gcn.train.data[[variable.P]] <- mx.nd.array(t(gcn.valid.inputs$tP[[i]]))
           
-          if(length(gcn.inputs$H[[i]]) == layer.vecs[i]){
-            gcn.valid.data[[variable.H]] <- mx.nd.array(t(train.data[gcn.inputs$H[[i]],]))
+          if(length(gcn.valid.inputs$H[[i]]) == layer.vecs[i]){
+            gcn.valid.data[[variable.H]] <- mx.nd.array(t(graph.input$features$data[gcn.valid.inputs$H[[i]],]))
           }else{
             #padding layer inputs
-            offset.vecs <- layer.vecs[i] - length(gcn.inputs$H[[i]])
+            offset.vecs <- layer.vecs[i] - length(gcn.valid.inputs$H[[i]])
             padding <- matrix(0, offset.vecs, input.size)
-            gcn.valid.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(train.data[gcn.inputs$H[[i]],]),padding)))
+            gcn.valid.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.valid.inputs$H[[i]],]),padding)))
           }
         }
         
-        if(length(gcn.inputs$H[[K+1]]) == layer.vecs[K+1]){
-          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(train.data[gcn.inputs$H[[(K+1)]],]))
+        if(length(gcn.valid.inputs$H[[K+1]]) == layer.vecs[K+1]){
+          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(graph.input$features$data[gcn.valid.inputs$H[[(K+1)]],]))
         }else{
           #padding layer inputs
-          offset.vecs <- layer.vecs[K+1] - length(gcn.inputs$H[[K+1]])
+          offset.vecs <- layer.vecs[K+1] - length(gcn.valid.inputs$H[[K+1]])
           padding <- matrix(0, offset.vecs, input.size)
-          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(train.data[gcn.inputs$H[[(K+1)]],]),padding)))
+          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.valid.inputs$H[[(K+1)]],]),padding)))
         }
-        
+      
         mx.exec.update.arg.arrays(m$gcn.exec, gcn.valid.data, match.name = TRUE)
         mx.exec.forward(m$gcn.exec, is.train = FALSE)
         

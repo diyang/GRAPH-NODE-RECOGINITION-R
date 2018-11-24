@@ -75,7 +75,7 @@ Graph.receptive.fields.computation <- function(nodes.pool,
         if(neighbor.diff.number <= (random.neighbor[ly])){
           neighbor.vec <- neighbor.index.diff
         }else{
-          sample.neighbor.index <- sample(neighbor.diff.number, (random.neighbor[ly]), replace=FALSE)
+          sample.neighbor.index <- sample(neighbor.diff.number, random.neighbor[ly], replace=FALSE)
           neighbor.vec <- neighbor.index.diff[sample.neighbor.index]
         }
         all.vectices <- c(all.vectices, neighbor.vec)
@@ -96,10 +96,10 @@ Graph.receptive.fields.computation <- function(nodes.pool,
           vi <- node.info$node_index
           vj <- node.info$neighbor_vec[j]
           tj <- node.neighbor.indcies[j]
-          if(length(node.info$neighbor_vec) <= (random.neighbor[ly])){
+          if(length(node.info$neighbor_vec) <= random.neighbor[ly]){
             d <- length(node.info$neighbor_vec)
           }else{
-            d <- (random.neighbor[ly])
+            d <- random.neighbor[ly]
           }
           P.tilde[ti,tj] <- P[vi,vj]*(node.info$neighbor_num/d)
         }
