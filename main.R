@@ -30,7 +30,7 @@ random.neighbor <- c(20)
 num.hidden <- c(20)
 input.size <- dim(data)[2]
 
-gcn.sym <- GCN.two.layer.model(num.hidden, num.label, dropout = 0.3)
+gcn.sym <- GCN.two.layer.model(num.hidden, num.label, dropout = 0)
 gcn.model <- GCN.setup.model(gcn.sym,
                              random.neighbor,
                              input.size,
@@ -39,7 +39,7 @@ gcn.model <- GCN.setup.model(gcn.sym,
                              mx.init.uniform(0.01))
 
 # training process
-num.nodes.train <- floor((length(label) * 0.1)/batch.size)*batch.size
+num.nodes.train <- floor((length(label) * 0.3)/batch.size)*batch.size
 num.nodes.valid <- floor((length(label) * 0.1)/batch.size)*batch.size
 nodes.pool <- sample(c(1:length(label)), (num.nodes.train+num.nodes.valid), replace=FALSE)
 nodes.train.pool <- sort(nodes.pool[1:num.nodes.train])
@@ -49,7 +49,7 @@ learning.rate <- 0.01
 weight.decay <- 0
 clip.gradient <- 1
 optimizer <- 'sgd'
-lr.scheduler <- mx.lr_scheduler.FactorScheduler(step = 50, factor=0.5, stop_factor_lr = 0.01)
+#lr.scheduler <- mx.lr_scheduler.FactorScheduler(step = 50, factor=0.5, stop_factor_lr = 0.01)
 gcn.model.trained <- GCN.trian.model(model = gcn.model,
                                      graph.input = graph.input,
                                      nodes.train.pool = nodes.train.pool,
@@ -58,5 +58,5 @@ gcn.model.trained <- GCN.trian.model(model = gcn.model,
                                      learning.rate = learning.rate,
                                      weight.decay = weight.decay,
                                      clip.gradient = clip.gradient,
-                                     optimizer = optimizer,
-                                     lr.scheduler = lr.scheduler)
+                                     optimizer = optimizer)
+                                     #lr.scheduler = lr.scheduler

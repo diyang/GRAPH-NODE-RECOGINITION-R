@@ -137,33 +137,34 @@ GCN.trian.model <- function(model,
         # gcn input data preparation
         batch.begin <- (batch.counter-1)*batch.size+1
         nodes.valid.batch <- nodes.valid.pool[batch.begin:(batch.begin+batch.size-1)] 
-        gcn.valid.inputs <- Graph.receptive.fields.computation(nodes.valid.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
+        gcn.valid.input <- Graph.receptive.fields.computation(nodes.valid.batch, graph.input$P, graph.input$adjmatrix, random.neighbor)
         
         gcn.valid.data <- list()
         for(i in 1:K){
           variable.P <- paste0("P.",i,".tilde")
           variable.H <- paste0("H.",i,".tilde")
           
-          gcn.train.data[[variable.P]] <- mx.nd.array(t(gcn.valid.inputs$tP[[i]]))
+          gcn.valid.data[[variable.P]] <- mx.nd.array(t(gcn.valid.input$tP[[i]]))
           
-          if(length(gcn.valid.inputs$H[[i]]) == layer.vecs[i]){
-            gcn.valid.data[[variable.H]] <- mx.nd.array(t(graph.input$features$data[gcn.valid.inputs$H[[i]],]))
+          if(length(gcn.valid.input$H[[i]]) == layer.vecs[i]){
+            gcn.valid.data[[variable.H]] <- mx.nd.array(t(graph.input$features$data[gcn.valid.input$H[[i]],]))
           }else{
             #padding layer inputs
-            offset.vecs <- layer.vecs[i] - length(gcn.valid.inputs$H[[i]])
+            offset.vecs <- layer.vecs[i] - length(gcn.valid.input$H[[i]])
             padding <- matrix(0, offset.vecs, input.size)
-            gcn.valid.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.valid.inputs$H[[i]],]),padding)))
+            gcn.valid.data[[variable.H]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.valid.input$H[[i]],]),padding)))
           }
         }
         
-        if(length(gcn.valid.inputs$H[[K+1]]) == layer.vecs[K+1]){
-          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(graph.input$features$data[gcn.valid.inputs$H[[(K+1)]],]))
+        if(length(gcn.valid.input$H[[K+1]]) == layer.vecs[K+1]){
+          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(graph.input$features$data[gcn.valid.input$H[[(K+1)]],]))
         }else{
           #padding layer inputs
-          offset.vecs <- layer.vecs[K+1] - length(gcn.valid.inputs$H[[K+1]])
+          offset.vecs <- layer.vecs[K+1] - length(gcn.valid.input$H[[K+1]])
           padding <- matrix(0, offset.vecs, input.size)
-          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.valid.inputs$H[[(K+1)]],]),padding)))
+          gcn.valid.data[[paste0("H.",(K+1),".tilde")]] <- mx.nd.array(t(rbind(as.matrix(graph.input$features$data[gcn.valid.input$H[[(K+1)]],]),padding)))
         }
+        gcn.valid.data[["label"]] <- mx.nd.array(graph.input$features$label[gcn.valid.input$H[[1]]])
       
         mx.exec.update.arg.arrays(m$gcn.exec, gcn.valid.data, match.name = TRUE)
         mx.exec.forward(m$gcn.exec, is.train = FALSE)

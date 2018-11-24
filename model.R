@@ -29,7 +29,7 @@ Graph.Convolution <- function(data,
     data <- mx.symbol.Dropout(data=data, p=dropout)
   }
   data.aggerator <- mx.symbol.dot(tP, neighbors)
-  conv.input <- mx.symbol.Concat(data = c(data, data.aggerator), num.args = 2, dim = 1)
+  conv.input <- mx.symbol.concat(data = c(data, data.aggerator), num.args = 2, dim = 1)
   graph.output <- mx.symbol.FullyConnected(data=conv.input, num_hidden = num.hidden)
   graph.activation <- mx.symbol.Activation(data=graph.output, act.type='relu')
   graph.L2norm <- mx.symbol.L2Normalization(graph.activation)
