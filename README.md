@@ -1,8 +1,16 @@
-# SAGE-GRAPH-R
+# SAGE-GRAPH-MxNet-R
 
 This repo contains an MXNet implementation of [this](https://arxiv.org/pdf/1706.02216.pdf) state of the art Graph Convolutional Neural Network with R.
 
 ![](./docs/sample_and_agg.png)
+## Requirements
+All examples use MxNet 0.10.1 library to perform deep learning, 
+and use igraph 1.2.2 to store graph regarding data. To install the library, please type following commands in R Studio
+  
+```
+install.package("mxnet") 
+install.package("igraph")
+```
 
 ## Running the code
 Download & extract the training data:
