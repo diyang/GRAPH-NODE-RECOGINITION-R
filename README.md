@@ -1,8 +1,8 @@
 # SAGE-GRAPH-R
 
-- This repo contains an MXNet implementation of [this](https://arxiv.org/pdf/1706.02216.pdf) state of the art Graph Convolutional Neural Network with R.
+This repo contains an MXNet implementation of [this](https://arxiv.org/pdf/1706.02216.pdf) state of the art Graph Convolutional Neural Network with R.
 
-![](./docs/model_architecture.png)
+![](./docs/sample_and_agg.png)
 
 ## Running the code
 Download & extract the training data:
