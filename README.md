@@ -4,7 +4,8 @@ This repo contains an MXNet implementation of [this](https://arxiv.org/pdf/1706.
 
 ![](./docs/sample_and_agg.png)
 ## Requirements
-All examples use MxNet 0.10.1 library to perform deep learning, and use igraph to store graph regarding data. To install the library, please type 
+All examples use MxNet 0.10.1 library to perform deep learning, 
+and use igraph 1.2.2 to store graph regarding data. To install the library, please type 
 ```
 install.package("mxnet") 
 install.package("igraph")
