@@ -3,37 +3,6 @@ require(RSpectra)
 require(rjson)
 require(igraph)
 
-normalise.adj <- function(adj){
-  indicies <- which(adj!=0, arr.ind = TRUE)
-  i <- indicies[,1]
-  j <- indicies[,2]
-  x <- rep(1, length(i))
-  adj <- sparseMatrix(x=x, i=i, j=j, dims=dim(adj))
-  adj <- adj + Diagonal(dim(adj)[1])
-  rowsum <- rowSums(adj,dims = 1,sparseResult = FALSE)
-  d_inv_sqrt <- sqrt(rowsum)
-  d_inv_sqrt[is.infinite(d_inv_sqrt)] <- 0
-  d_mat_inv_sqrt<- Diagonal(length(d_inv_sqrt), x=d_inv_sqrt)
-  A <- d_mat_inv_sqrt%*%adj%*%d_mat_inv_sqrt
-  return(A)
-}
-
-chebyshev.polynomials <- function(adj, k){
-  adj.shape <- dim(adj)
-  adj.normalised <- normalise.adj(adj)
-  laplacian <- Diagonal(adj.shape[1]) - adj.normalised
-  largest_eigval <- eigen(laplacian,only.values = TRUE)$values
-  scaled_laplacian <- (2/largest_eigval[1])*laplacian - Diagonal(adj.shape[1])
-  t_k <-c(Diagonal(adj.shape[1]), scaled_laplacian)
-  for(i in 3:k){
-    t_k_minus_one <- t_k[[length(t_k)]]
-    t_k_minus_two <- t_k[[(length(t_k)-1)]]
-    t_k_appender <- 2*scaled_laplacian%*%t_k_minus_one - t_k_minus_two
-    t_k <- c(t_k, t_k_appender)
-  }
-  return(t_k)
-}
-
 Graph.receptive.fields.computation <- function(nodes.pool,
                                                P, 
                                                adj,
