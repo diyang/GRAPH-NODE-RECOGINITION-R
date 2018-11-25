@@ -5,12 +5,12 @@ This repo contains an MXNet implementation of [this](https://arxiv.org/pdf/1706.
 ![](./docs/sample_and_agg.png)
 ## Requirements
 All examples use MxNet 0.10.1 library to perform deep learning, 
-and use igraph 1.2.2 to store graph regarding data. To install the library, please type 
+and use igraph 1.2.2 to store graph regarding data. To install the library, please type following commands in R Studio
+  
 ```
 install.package("mxnet") 
 install.package("igraph")
 ```
-in R Studio
 
 ## Running the code
 Download & extract the training data:
