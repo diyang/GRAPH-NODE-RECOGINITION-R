@@ -67,7 +67,7 @@ GCN.trian.model <- function(model,
   
   opt <- mx.opt.create(optimizer, learning.rate = learning.rate,
                        wd = weight.decay,
-                       rescale.grad = 1, #(1/batch.size),
+                       rescale.grad = (1/batch.size),
                        clip_gradient=clip.gradient,
                        lr_scheduler = lr.scheduler)
   
@@ -82,6 +82,7 @@ GCN.trian.model <- function(model,
     ##################
     train.nll <- 0
     num.batch.train <- floor(length(nodes.train.pool)/batch.size)
+    train.metric <- mx.metric.accuracy$init()
     for(batch.counter in 1:num.batch.train){
       # gcn input data preparation
       batch.begin <- (batch.counter-1)*batch.size+1
@@ -121,10 +122,16 @@ GCN.trian.model <- function(model,
       arg.blocks <- opt.updater(weight = m$gcn.exec$ref.arg.arrays, grad = m$gcn.exec$ref.grad.arrays)
       mx.exec.update.arg.arrays(m$gcn.exec, arg.blocks, skip.null=TRUE)
 
-      label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
-      train.nll <- train.nll + calc.nll(as.array(label.probs), batch.size)
-      cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Trian: NLL=", train.nll / batch.counter,"\n"))
+      train.metric <- mx.metric.accuracy$update(m$gcn.exec$ref.arg.arrays[["label"]], m$gcn.exec$ref.outputs[["sm_output"]], train.metric)
+      result <- mx.metric.accuracy$get(train.metric)
+      #cat(paste0("[", epoch, "] Train-", result$name, "=", result$value, "\n"))
+      #label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
+      #train.nll <- train.nll + calc.nll(as.array(label.probs), batch.size)
+      cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Trian: ",result$name,"=", result$value,"\n"))
     }
+    result <- mx.metric.accuracy$get(train.metric)
+    cat(paste0("[", epoch, "] Train-", result$name, "=", result$value, "\n"))
+    
     ####################
     # batch validating #
     ####################
@@ -133,6 +140,7 @@ GCN.trian.model <- function(model,
       cat("Validating \n")
       valid.nll <- 0
       num.batch.valid <- floor(length(nodes.valid.pool)/batch.size)
+      eval.metric <- mx.metric.accuracy$init()
       for(batch.counter in 1:num.batch.valid){
         # gcn input data preparation
         batch.begin <- (batch.counter-1)*batch.size+1
@@ -169,10 +177,14 @@ GCN.trian.model <- function(model,
         mx.exec.update.arg.arrays(m$gcn.exec, gcn.valid.data, match.name = TRUE)
         mx.exec.forward(m$gcn.exec, is.train = FALSE)
         
-        label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
-        valid.nll <- valid.nll + calc.nll(as.array(label.probs), batch.size)
-        cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Valid: NLL=", valid.nll / batch.counter,"\n"))
+        eval.metric <- mx.metric.accuracy$update(m$gcn.exec$ref.arg.arrays[["label"]], m$gcn.exec$ref.outputs[["sm_output"]], eval.metric)
+        result <- mx.metric.accuracy$get(eval.metric)
+        #label.probs <- mx.nd.choose.element.0index(m$gcn.exec$ref.outputs[["sm_output"]], m$gcn.exec$ref.arg.arrays[["label"]])
+        #valid.nll <- valid.nll + calc.nll(as.array(label.probs), batch.size)
+        cat(paste0("Epoch [", epoch, "] Batch [", batch.counter, "] Valid: ",result$name,"=", result$value,"\n"))
       }
+      result <- mx.metric.accuracy$get(eval.metric)
+      cat(paste0("[", epoch, "] Valid-", result$name, "=", result$value, "\n"))
     }
     cat("\n")
   }
@@ -223,7 +235,7 @@ GCN.setup.model <- function(gcn.sym,
   args <- input.shape
   args$symbol <- gcn.sym
   args$ctx <- ctx
-  args$grad.req <- 'add'
+  args$grad.req <- 'write'
   gcn.exec <- do.call(mx.simple.bind, args)
   
   mx.exec.update.arg.arrays(gcn.exec, params$arg.params, match.name = TRUE)
@@ -245,16 +257,3 @@ GCN.setup.model <- function(gcn.sym,
                input.size = input.size))
   
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

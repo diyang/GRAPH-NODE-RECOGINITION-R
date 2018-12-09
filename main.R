@@ -1,3 +1,5 @@
+# Clean workspace
+rm(list=ls())
 require(mxnet)
 #windows
 #setwd("I:/Desktop/R/SAGE-GRAPH-R")
@@ -18,7 +20,7 @@ label.text <-graph.input$content$class
 label <- rep(0, length(label.text))
 for(i in 1:num.label){
   class.ind <- which(label.text == level.label[i])
-  label[class.ind] <- i
+  label[class.ind] <- (i-1)
 }
 data <-as.matrix(graph.input$content[, -which(names(graph.input$content) %in% c("paper_id", "class"))])
 graph.input[["features"]] <- list(data=data, label=label) 
@@ -39,13 +41,13 @@ gcn.model <- GCN.setup.model(gcn.sym,
                              mx.init.uniform(0.01))
 
 # training process
-num.nodes.train <- floor((length(label) * 0.3)/batch.size)*batch.size
+num.nodes.train <- floor((length(label) * 0.4)/batch.size)*batch.size
 num.nodes.valid <- floor((length(label) * 0.1)/batch.size)*batch.size
 nodes.pool <- sample(c(1:length(label)), (num.nodes.train+num.nodes.valid), replace=FALSE)
 nodes.train.pool <- sort(nodes.pool[1:num.nodes.train])
 nodes.valid.pool <- sort(nodes.pool[(num.nodes.train+1):(num.nodes.train+num.nodes.valid)])
 
-learning.rate <- 0.005
+learning.rate <- 0.01
 weight.decay <- 0
 clip.gradient <- 1
 optimizer <- 'sgd'
