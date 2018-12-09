@@ -67,7 +67,7 @@ GCN.trian.model <- function(model,
   
   opt <- mx.opt.create(optimizer, learning.rate = learning.rate,
                        wd = weight.decay,
-                       rescale.grad = (1/batch.size),
+                       rescale.grad = 1, #(1/batch.size),
                        clip_gradient=clip.gradient,
                        lr_scheduler = lr.scheduler)
   
@@ -235,7 +235,7 @@ GCN.setup.model <- function(gcn.sym,
   args <- input.shape
   args$symbol <- gcn.sym
   args$ctx <- ctx
-  args$grad.req <- 'write'
+  args$grad.req <- 'add'
   gcn.exec <- do.call(mx.simple.bind, args)
   
   mx.exec.update.arg.arrays(gcn.exec, params$arg.params, match.name = TRUE)
