@@ -1,4 +1,4 @@
-# SAGE-GRAPH-MxNet-R
+# Node Recognition in Large Scale Network
 
 This repo contains an MXNet implementation of [this](https://arxiv.org/pdf/1706.02216.pdf) state of the art Graph Convolutional Neural Network with R.
 
